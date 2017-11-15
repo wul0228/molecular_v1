@@ -1,0 +1,17 @@
+[
+  [
+    "version", 
+    "update date", 
+    "drugbank_v*"
+  ], 
+  [
+    "5-0-9", 
+    "171108102215", 
+    "drugbank_v1.py"
+  ], 
+  [
+    "5-0-10", 
+    "171115101926", 
+    "drugbank_v1.py"
+  ]
+]

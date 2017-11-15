@@ -1,0 +1,12 @@
+[
+  [
+    "version", 
+    "update date", 
+    "kegg_compound_v*"
+  ], 
+  [
+    "84.0+", 
+    "171115105212", 
+    "kegg_compound_v1.py"
+  ]
+]

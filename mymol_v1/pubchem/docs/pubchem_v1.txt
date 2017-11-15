@@ -1,0 +1,85 @@
+++++++ pubchem Documentation ++++++
+
+edited@2017/10/25
+
+please direct all questions to ling.wu@myhealthgene.com
+
+1. brief introduction of sub-files
+.
+├── pubchem.log   --- contains the database version,update date,model version
+└── pubchem_v1.py --- contains the main code of pubchem-parser
+
+2. description about pubchem-parser
+
+the main job of pubchem-parser is to download,convert,store and update data and insert data to mongodb automatically.
+
+Functions
+
+(1) connectFTP()
+    ===function : connect  pubchem ftp site and log to the sdf directory,return a ftp object
+
+(2) downloadData( redownload = False )
+    ===function : download the raw data from PubChem FTP WebSite
+    ===parameter:
+         redownload ~ default False, check to see if exists an old edition before download
+                    ~ if set to true, download directly with no check
+
+(3) extractData(file_dir = None, latest = False)
+    ===function : extract the infos in pubchem download file  and save as a json file
+    ===parameter:
+         file_dir ~ if filepath afforded, file handling at once
+         latest   ~ if no filepath , default False ,extract data directely from latest version in /dataraw/pubchem/
+                  ~ if set to True, download data in real-time before extract
+
+(4) standarData(filepath)
+    ===function : transfer sdf file to json and add a field PUBCHEM_OPENEYE_CAN_SMILES
+    ===parameter:
+     filepath ~ filepath of sdf file
+
+(5) updateData()
+    ===function : update pubchem data automatically
+
+(6) insertData(data=None,filepath=None)
+    ===function :  inser extracted data to mongodb database
+    ===parameter:
+     store_dir ~ a json file's store directory,stored the pubchem data
+
+(7) selectDate():
+    ===function : supply a interface to select data from database
+
+Design
+
+a. download from ftp site and store raw data into /dataraw/pubchem/PubChem_version_nowtime.sdf.gz
+b. check to see if there existed an editon
+c. file handling at once
+
+(1) downloadData
+
+    redownload = True  → a
+    redownload = False →b ,=N → a
+             b, =y →   list editions ,still redownload = Y → a
+                     list editions ,still redownload = N → End
+(2) extractData
+
+    file_dir = True → c
+             = False,latest = True → a → file_dir = True → c
+                            = False → b,=N → a
+                    =y → list editions,index = Y → file_dir = True → c
+                                  index = N → End
+(3) updateData
+    
+    get the latest updated version from remote site → compare with current local version,remote updated = Y → a → c → mark in log
+                                                updated = N → End
+
+Usage
+if you want to download,convert,store and update data automatically, you can do this like below:
+
+$ python pubchem_v1.py
+
+    Download : 1
+    Update : 2
+    Select : 3
+
+input 1 to Download,2 to Update, 3 to Select from Mongodb, else quit.
+
+++++++ pubchem  Documentation ++++++
