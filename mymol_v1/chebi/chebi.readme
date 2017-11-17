@@ -1,0 +1,94 @@
+++++++ chebi Documentation ++++++
+
+edited@2017/11/16
+
+please direct all questions to ling.wu@myhealthgene.com
+
+1. brief introduction of sub-files
+.
+├── chebi.log          --- contains the database version,update date,model version
+├── chebi.readme       --- chebi data directory and the parser introduction
+├── chebi_v1.py        --- contains the main code of chebi-parser
+├── chebi_v1.pyc       --- the compiled file of chebi_v1.py 
+├── database           --- contains the all version of database in mongodb and related introduction
+├── dataraw            --- contains the raw data from chebi ftp site
+├── datastore          --- contains the standard data convert from to  dataraw 
+├── __init__.py        --- the inited  file of package
+└── __init__.pyc       --- the compiled file of  __init__.py
+    
+2. description about chebi-parser
+
+the main job of chebi-parser is to download,convert,store and update data and insert data to mongodb automatically.
+
+Functions
+
+(1) downloadData( redownload = False )
+    ===function : download the raw data from ChEBI FTP WebSite
+    ===parameter:
+         redownload ~ default False, check to see if exists an old edition before download
+                    ~ if set to true, download directly with no check
+
+(2) extractData(filepath = None, latest = False)
+    ===function : extract the infos in chebi download file  and save as a json file
+    ===parameter:
+         filepath ~ if filepath afforded, file handling at once
+         latest   ~ if no filepath , default False ,extract data directely from latest version in /chebi/dataraw/
+                  ~ if set to True, download data in real-time before extract
+
+(4) standarData(filepath)
+    ===function : transfer sdf file to json and add a field STANDAR_SMILES
+    ===parameter:
+     filepath ~ filepath of sdf file
+
+(6) insertData(store_file_path)
+    ===function :  inser extracted data to mongodb database
+    ===parameter:
+     store_file_path ~ a json file's path,stored the chebi data
+
+(6) updateData(insert=True)
+    ===function : update drugbank data automatically
+    ===parameter:
+         insert ~ default is Ture, after standar data ,insert to mongodb
+                   ~ if set to false, process break when standarData completed
+
+(7) selectDate(querykey,queryvalue):
+    ===function : supply a interface to select data from database
+    ===parameter:
+        querykey ~ the filed name 
+        queryvalue ~ the field value
+
+Design
+
+a. download from ftp site and store raw data into /chebi/dataraw/ChEBI_Complete_version_nowtime.sdf.gz
+b. check to see if there existed an editon
+c. file handling at once
+
+(1) downloadData
+
+    redownload = True  → a
+    redownload = False →b ,=N → a
+                                            b, =y →   list editions ,still redownload = Y → a
+                                                             list editions ,still redownload = N → End
+(2) extractData
+
+    filepath = True → c
+    filepath = False,latest = True → a → filepath = True → c
+                                latest = False → b,=N → a
+                                                             b,= y → list editions,index = Y → filepath = True → c
+                                                                                                 index = N → End
+(3) updateData
+    
+    get the latest updated version from remote site → compare with current local version,remote updated = Y → a → c → mark in log
+                                                                                                                                                                          updated = N → End
+
+                                                                                                                                       u
+Usage: python chebi_v1.py  [OPTION]...[NAME]...
+
+Download,extract,standar,insert and update chebi automatically
+
+-h, --help                         :give this help
+-a, --all                             :excute download,extract,standar and insert
+-u, --update                     :update chebi database
+-q, --query  [filedname]  :select data from mongodb
+
+++++++ chebi  Documentation ++++++

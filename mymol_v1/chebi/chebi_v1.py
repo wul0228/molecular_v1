@@ -7,24 +7,25 @@
 '''
 this model setted  to download, extract and update chebi data automatically
 '''
+
 import sys
 sys.path.append('../')
 sys.setdefaultencoding = ('utf-8')
 from share import *
-from config import *
+from config import *  
 
-version = '1.0'
+__all__ = ['downloadData','extractData','standarData','insertData','updateData','selectData']
+
+version  = 1.0
 
 model_name = psplit(os.path.abspath(__file__))[1]
 
-# buid directory to store raw an extracted data
-(chebi_model,chebi_raw,chebi_store,chebi_db) = buildSubDir('chebi')
+(chebi_model,chebi_raw,chebi_store,chebi_db,chebi_map) = buildSubDir('chebi')
 
-# main code
 def downloadData( redownload = False ):
     '''
     this function is to download the raw data from ChEBI FTP WebSite
-    paras:
+    args:
     redownload-- default False, check to see if exists an old edition before download
                        -- if set to true, download directly with no check
     '''
@@ -62,7 +63,7 @@ def extractData(filepath = None, latest = False):
 
     '''
     this function is set to extract the infos in chebi download file  and save as a json file
-    paras:
+    args:
     filepath -- if filepath afforded, file handling at once
     latest-- if no filepath , default False ,extract data directely from latest edition in /dataraw/chebi/
             --  if set to True, download data in real-time before extract
@@ -102,6 +103,8 @@ def extractData(filepath = None, latest = False):
 def standarData(filepath):
     '''
     this function is to transfer sdf file to json and add a field STANDAR_SMILES
+    args:
+    filepath -- filepath of sdf file
     '''
     # pre-deal  the file after get the filepath
     filename = psplit(filepath)[1].strip()
@@ -121,6 +124,8 @@ def standarData(filepath):
 
     os.popen(gzip)
 
+    names = ["IUPAC&Names" ,'ChEBI&Name' ,'IUPAC&Names','Synonyms','Definition',"ChEBI&ID","Secondary&ChEBI&ID"]
+
     mols = list()
 
     for block in file:
@@ -132,7 +137,7 @@ def standarData(filepath):
         for it in items:
 
             #change the space in key to '_'
-            key = it.split('>',1)[0].strip().replace(' ','_')
+            key = it.split('>',1)[0].strip().replace(' ','&').replace('.','*').strip()
 
             value = it.split('>',1)[1].strip()
 
@@ -141,13 +146,13 @@ def standarData(filepath):
 
                 value =[i.strip() for i in  value.split('\n') if i]
 
-                if key !=  "IUPAC_Names" and all([x.count(':') for x in value]):
+                if key not in names and all([x.count(':') for x in value]):
 
                     value_dict = dict()
 
                     for j in value:
 
-                        j_key = j.split(':',1)[0].strip()
+                        j_key = j.split(':',1)[0].strip().replace(' ','&').replace('.','*')
 
                         j_value = j.split(':',1)[1].strip()
 
@@ -174,11 +179,10 @@ def standarData(filepath):
     
     return store_file_path
 
-
 def insertData(store_file_path):
     '''
     this function is set to inser extracted data to mongdb database
-    pares:
+    args:
     store_file_path -- a json file's path,stored the chebi data
     '''
     try:
@@ -215,7 +219,11 @@ def insertData(store_file_path):
 
     
 def updateData(insert=True):
-
+    '''
+    this function is to check the edition existed and update or not
+    args:
+    insert -- default is Ture, after standar data ,insert to mongodb, if set to false, process break when standarData completed
+    '''
     # method 1
     ftp = connectFTP(**chebi_ftp_infos)
 
@@ -256,9 +264,12 @@ def updateData(insert=True):
     # browser.close()
     # compare the latest edition with log record
     
-def selectData():
+def selectData(querykey = 'Standard_SMILES',queryvalue=''):
     '''
     this function is set to select data from mongodb
+    args:
+    querykey --  the filed name 
+    queryvalue -- the field value
     '''
     conn = MongoClient('127.0.0.1',27017)
 
@@ -266,46 +277,136 @@ def selectData():
 
     colnamehead = 'ChEBI'
 
-    querykey = 'Standard_SMILES'
-
     dataFromDB(db,colnamehead,querykey,queryvalue=None)
 
-def choseDown(choice = 'update',insert=True):
-    
-    if choice == 'update':
+def mapName2ID(store_file_path):
 
-        updateData()
+    datamap  = pjoin(chebi_model,'datamap')
 
-    elif choice == 'download':
+    file = json.load(open(store_file_path))
 
-        save_file_path = downloadData(redownload=True )
+    name_ids = dict()
 
-        store_file_path  = extractData(save_file_path)
+    for block in file:
 
-        if insert:
-
-            insertData(store_file_path)
-
-    elif choice == 'select':
-
-        selectData()
+        chebi_id = block.get("ChEBI&ID")
         
-    else:
-        pass
+        chebi_second_id =block.get("Secondary&ChEBI&ID")
+
+        chebi_name = block.get("ChEBI&Name")
+
+        iupac_name = block.get('IUPAC&Names')
+
+        brand_name = block.get('BRAND&Names')
+
+        synonyms = block.get('Synonyms')
+
+        names = [name for name in [chebi_name,iupac_name,brand_name,synonyms] if name]
+
+        for name in names:
+            if isinstance(name,unicode):
+                if name not in name_ids:
+                    name_ids[name] = list()
+                name_ids[name].append(chebi_id)
+                name_ids[name].append(chebi_second_id)
+
+            elif isinstance(name,list):
+                for n in name:
+                    if n not in name_ids:
+                        name_ids[n] = list()
+
+                    if  isinstance(chebi_id,unicode):
+                        name_ids[n].append(chebi_id)  
+                    elif   isinstance(chebi_id,list):
+                        name_ids[n] += chebi_id
+                    else:
+                        if chebi_id:
+                            print 'chebi_id',chebi_id
+
+                    if   isinstance(chebi_second_id,unicode):
+                        name_ids[n].append(chebi_second_id)  
+                    elif  isinstance(chebi_second_id,list):
+                        name_ids[n] += chebi_second_id
+                    else:
+                        pass
+                    
+            else:
+                pass
+    
+    for name,ids in name_ids.items():
+        newids = [_id for _id in ids if _id]
+        name_ids[name] = newids
+
+    savefilename = 'name2ids_{}.json'.format(store_file_path.rsplit('ChEBI_complete_')[1].split('.json')[0].strip())
+    
+    with open(pjoin(chebi_map,savefilename),'w') as wf:
+        json.dump(name_ids,wf,indent=2)
+
+    print len(name_ids)
+
+    # keys = reduce(lambda x,y: set(x) |set(y) , [c.keys() for c in file])
+
+    # nolink = [i for i in keys if not i.endswith('&Links')]
+
+    # print keys
+    # print '-'*50
+    # print len(keys)
+
+    # print nolink #BRAND_Names ChEBI_Name Synonyms IUPAC_Names
+    # print '~'*50
+    # print len(nolink)
+
+def mapCas2ID(store_file_path):
+
+    # a chebi id  coresponding to multi cas
+    file = json.load(open(store_file_path))
+
+    cas_ids = dict()
+
+    for block in file:
+
+        chebi_id = block.get("ChEBI&ID")
+        
+        chebi_second_id =block.get("Secondary&ChEBI&ID")
+
+        cas = block.get("CAS&Registry&Numbers")
+
+        if isinstance(cas,unicode):
+            if  cas not in cas_ids:
+                cas_ids[cas] = list()
+            cas_ids[cas].append(chebi_id)
+            cas_ids[cas].append(chebi_second_id)    
+
+        elif isinstance(cas,list):
+            for c in cas:
+                if  c not in cas_ids:
+                    cas_ids[c] = list()
+                cas_ids[c].append(chebi_id)
+                cas_ids[c].append(chebi_second_id)    
+
+    for cas,ids in cas_ids.items():
+        newids = [_id for _id in ids if _id]
+        cas_ids[cas] = newids
+
+    savefilename = 'cas2ids_{}.json'.format(store_file_path.rsplit('ChEBI_complete_')[1].split('.json')[0].strip())
+    
+    with open(pjoin(chebi_map,savefilename),'w') as wf:
+        json.dump(cas_ids,wf,indent=2)
+
+    print len(cas_ids)
 
 def main():
 
-    tips = '''
-    Download : 1
-    Update : 2
-    Select : 3
-    '''
-    index = raw_input(tips)
+    modelhelp = model_help.replace('*'*6,sys.argv[0]).replace('&'*6,'ChEBI').replace('#'*6,'chebi')
 
-    chose = {'1':'download','2':'update','3':'select'}
+    funcs = (downloadData,extractData,standarData,insertData,updateData,selectData)
 
-    choseDown(choice =chose[index])
-
-if __name__ =='__main__':
-
+    getOpts(modelhelp,funcs=funcs)
+        
+if __name__ == '__main__':
+    
     main()
+    # store_file_path = '/home/user/project/molecular_v1/mymol_v1/chebi/datastore/ChEBI_complete_21320171001032328_171031161434.json'
+    # mapName2ID(store_file_path)
+    # mapCas2ID(store_file_path)
+    
