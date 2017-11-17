@@ -1,0 +1,119 @@
+++++++ kegg_compound Documentation ++++++
+
+edited@2017/11/16
+
+please direct all questions to ling.wu@myhealthgene.com
+
+1. brief introduction of sub-files
+.
+├── kegg_compound.log          --- contains the database version,update date,model version
+├── kegg_compound.readme --- kegg_compound data directory and the parser introduction
+├── kegg_compound_v1.py     --- contains the main code of kegg_compound-parser
+├── kegg_compound_v1.pyc   --- the compiled file of kegg_compound_v1.py 
+├── database                            --- contains the all version of database in mongodb and related introduction
+├── dataraw                             --- contains the raw data from kegg_compound web site
+├── datastore                           --- contains the standard data convert from to  dataraw 
+├── __init__.py                         --- the inited  file of package
+└── __init__.pyc                       --- the compiled file of  __init__.py
+	
+2. description about kegg_compound-parser
+
+the main job of kegg_compound-parser is to download,convert,store and update data and insert data to mongodb automatically.
+
+Functions
+
+(1) parseDiv(div)
+    ===function : paese a div return a dict {a.text:a.href} under the div
+    ===parameter:
+        div ~ a element (class) in html
+
+(2) getMolHtml(href,rawdir):
+    ===function : get html  of a specified  molecule in kegg compound website
+    ===parameter:
+        href ~ the link of compound in kegg website
+        rawdir ~ the save directory of compound html
+
+(3) parseMolHtml(htmlpath,storedir):
+    ===function : parse a compound infos from raw html file
+    ===parameter:
+        htmlpath ~ the raw html file store directory
+        sroredir ~ the store directore of ectracted data
+
+(4)  getMolFile(filelink,storedir):
+    ===function : get the molfile string and convert to standard smiles to store
+    ===parameter:
+        filelink ~ the href of molecule of kegg 
+        storedir ~ the directory to store mol json file
+
+(5) getLinkDB(alldblink):
+    ===function :  get all the db link infos of molecule in kegg
+    ===parameter:
+        alldblink ~ the link of alldb  of mol in kegg web site
+
+(6) getVersion():
+     ===function : get the lates version of kegg compound ,return latest release and entries
+    
+(7) downloadData( redownload = False )
+    ===function : download the raw data from kegg_compound web WebSite
+    ===parameter:
+         redownload ~ default False, check to see if exists an old edition before download
+                    ~ if set to true, download directly with no check
+
+(8) extractData( rawdir )
+    ===function : parse a compound infos from kegg  Compund html in batch
+    ===parameter:
+         rawdir ~ the save directory of compound html
+
+(9) standarData(storedir)
+    ===function : standard a dict  obeject  to delet some keys that's value is none recursive
+    ===parameter:
+	 storedir ~ the directory to store standard file
+
+(10) insertData(storedir)
+    ===function :  insert extracted data to mongodb database
+    ===parameter:
+	 storedir ~ a json file's path dir ,stored the kegg_compound data
+
+(6) updateData(insert=True)
+    ===function : update kegg_compound data automatically
+    ===parameter:
+         insert ~ default is Ture, after standar data ,insert to mongodb
+                   ~ if set to false, process break when standarData completed
+
+(7) selectDate(querykey,queryvalue):
+    ===function : supply a interface to select data from database
+    ===parameter:
+        querykey ~ the filed name 
+        queryvalue ~ the field value
+
+Design
+
+a. download from web site by wget and store raw data into /dataraw/kegg_compound/kegg_compound_version_nowtime.xml.zip
+b. check to see if there existed an editon
+c. file handling at once
+
+(1) downloadData
+
+    redownload = True  → a
+    redownload = False →b ,=N → a
+			  b, =y →   list editions ,still redownload = Y → a
+				     list editions ,still redownload = N → End
+(2) extractData
+
+   rawdir → get all filpath →  parseMolHtml in batch  → standar (get mol string and smiles) in batch →output mol json file one by one
+      	      
+(3) updateData
+    
+    get the latest updated version from remote site → compare with current local version,remote updated = Y → a → c → mark in log
+                                                                                                                                                                          updated = N → End
+
+Usage: python kegg_compound_v1.py  [OPTION]...[NAME]...
+
+Download,extract,standar,insert and update kegg_compound automatically
+
+-h, --help                         :give this help
+-a, --all                             :excute download,extract,standar and insert
+-u, --update                     :update kegg_compound database
+-q, --query  [filedname]  :select data from mongodb
+
+++++++ kegg_compound  Documentation ++++++

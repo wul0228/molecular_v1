@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# --coding:utf-8--
+# ---coding:utf-8---
 # date:20171109
 # author:wuling
 # emai:ling.wu@myhealthgene.com
@@ -15,16 +15,19 @@ from share import *
 from config import *
 from bs4 import BeautifulSoup as bs
 
+__all__ = ['downloadData','extractData','standarData','insertData','updateData','selectData']
+
 version = '1.0'
 
 model_name = psplit(os.path.abspath(__file__))[1]
 
 # buid directory to store raw an extracted data
-(kegg_model,kegg_raw,kegg_store,kegg_db) = buildSubDir('kegg')
+(kegg_model,kegg_raw,kegg_store,kegg_db,kegg_map) = buildSubDir('kegg')
 
 def parseDiv(div):
     '''
-    this function is to paese a div return a dict {a.text:a.href} unser the div
+    this function is to paese a div return a dict {a.text:a.href} under the div
+    args:
     div --- a element in html
     '''
     atext_href = dict([ (a.text.replace(' ','&').replace('.','*'), a['href']) for a in div.select('a') if not a.text.count('show all')])
@@ -34,7 +37,8 @@ def parseDiv(div):
 # main code
 def getMolHtml(href,rawdir):
     '''
-    this function is to get html  of one molecule in kegg compound website
+    this function is to get html  of a specified  molecule in kegg compound website
+    args:
     href --- the link of compound in kegg website
     rawdir -- the save directory of compound html
     '''
@@ -49,7 +53,7 @@ def getMolHtml(href,rawdir):
 def parseMolHtml(htmlpath,storedir):
     '''
     this function is to parse a compound infos from kegg  Compund html
-    _id --- the indentifier of compound in kegg
+    args:
     htmlpath --- the raw html file store directory
     sroredir --- the store directore of ectracted data
     '''
@@ -149,7 +153,9 @@ def parseMolHtml(htmlpath,storedir):
 def getMolFile(filelink,storedir):
     '''
     this function is to get the molfile string and convert to standard smiles to store
+    args:
     filelink --- the href of molecule of kegg 
+    storedir --- he directory to store mol json file
     '''
     # 1. get mol string 
     _id =filelink.split('compound+')[1].strip()
@@ -199,6 +205,8 @@ def getMolFile(filelink,storedir):
 def getLinkDB(alldblink):
     '''
     this function is to get all the db link infos of molecule in kegg
+    args:
+    alldblink -- the link of alldb  of mol in kegg web site
     '''
     dblink_web = requests.get(alldblink).content
 
@@ -211,7 +219,12 @@ def getLinkDB(alldblink):
     for key,val in links.items():
         print key,val
 
+    return links
+
 def getVersion():
+    '''
+    this function is to get the lates version of kegg compound ,return latest release and entries
+    '''
 
     dbget_page = requests.get(kegg_dbget_url)
 
@@ -232,7 +245,7 @@ def getVersion():
 def downloadData(redownload = False):
     '''
     this function is to connect kegg web  site to crawling the compound data
-    paras:
+    args:
     redownload-- default False, check to see if exists an old edition before download
                        -- if set to true, download directly with no check
     download process
@@ -296,6 +309,7 @@ def downloadData(redownload = False):
 def extractData(rawdir):
     '''
     this function is to parse a compound infos from kegg  Compund html in batch
+    args:
     rawdir -- the save directory of compound html
     '''
     storedir = pjoin(kegg_store,rawdir.split('kegg/dataraw/',1)[1].strip())
@@ -310,11 +324,15 @@ def extractData(rawdir):
 
     print 'extractData completed'
 
+    standarData(storedir)
+    
     return storedir
 
 def standarData(storedir):
     '''
     this function is to get the mol struncture for every molecule and convert to standsmile to save
+    args:
+    storedir -- the directory to store standard file
     '''
     mol_links  = dict()
 
@@ -345,6 +363,11 @@ def standarData(storedir):
     print 'standarData completed'
 
 def insertData(storedir):
+    '''
+    this function is to insert extracted data to mongodb database
+    args:
+    storedir ~ a json file's path dir ,stored the drugbank data
+    '''
 
     conn  = MongoClient('localhost',27017)
     
@@ -369,23 +392,11 @@ def insertData(storedir):
 
     print 'insertData completed'
 
-def selectData():
-    '''
-    this function is set to select data from mongodb
-    '''
-    conn = MongoClient('127.0.0.1',27017)
-
-    db = conn.KEGG
-
-    colnamehead = 'kegg_compound'
-
-    querykey = 'Standard_Smiles'
-
-    dataFromDB(db,colnamehead,querykey,queryvalue=None)
-
-def updateData():
+def updateData(insert=True):
     '''
     this function is to check the edition existed and update or not
+    args:
+    insert -- default is Ture, after standar data ,insert to mongodb, if set to false, process break when standarData completed
     '''
     kegg_compound_log =  json.load(open(pjoin(kegg_model,'kegg_compound.log')))
     
@@ -395,7 +406,15 @@ def updateData():
 
     if release != latest_edition:
 
-        choseDown(choice = 'download')
+        save = downloadData()
+
+        store  = extractData(save)
+
+        standarData(store)
+
+        if insert:
+            
+            insertData(store)
 
         kegg_compound_log .append((releases,today,os.path.abspath(__file__)))
 
@@ -410,49 +429,30 @@ def updateData():
 
         print 'local is the latest edition!'
 
-def choseDown(choice = 'update',insert = True):
-    
-    if choice == 'update':
+def selectData(querykey = 'Standard_Smiles',queryvalue='O'):
+    '''
+    this function is set to select data from mongodb
+    args:
+    querykey --  the filed name 
+    queryvalue -- the field value
+    '''
+    conn = MongoClient('127.0.0.1',27017)
 
-        updateData()
+    db = conn.KEGG
 
-    elif choice == 'download':
+    colnamehead = 'kegg_compound'
 
-        save = downloadData()
-
-        store  = extractData(save)
-
-        standarData(store)
-
-        if insert:
-            
-            insertData(store)
-
-    elif choice == 'select':
-
-        selectData()
-
-    else:
-        pass
+    dataFromDB(db,colnamehead,querykey,queryvalue=None)
 
 def main():
 
-    tips = '''
-    Download : 1
-    Update : 2
-    Select : 3
-    '''
-    index = raw_input(tips)
+    modelhelp = model_help.replace('*'*6,sys.argv[0]).replace('&'*6,'KEGG').replace('#'*6,'kegg')
+   
+    funcs = (downloadData,extractData,standarData,insertData,updateData,selectData)
 
-    chose = {'1':'download','2':'update','3':'select'}
-
-    choseDown(choice =chose[index])
+    getOpts(modelhelp,funcs=funcs)
 
 if __name__ == '__main__':
-    # main()
-    # store  = extractData(save)
-    store = '/home/user/project/molecular/mymol_v1/kegg/datastore/kegg_compound_84.0+_171115105212/'
-    standarData(store)
-    insertData(store)
+    main()
 
         
