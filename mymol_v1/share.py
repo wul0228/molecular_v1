@@ -38,11 +38,14 @@ def buildSubDir(name):
 
     _db = pjoin(mymol_path,name,'database')
 
-    for _dir in [ _model,_raw,_store,_db]:
+    _map = pjoin(mymol_path,name,'datamap')
+
+
+    for _dir in [ _model,_raw,_store,_db,_map]:
 
         createDir(_dir)      
 
-    return (_model,_raw,_store,_db)
+    return (_model,_raw,_store,_db,_map)
 
 def initLogFile(parser,modelname,storedir,mt=None,rawdir=None):
 
@@ -269,14 +272,15 @@ def dataFromDB(database,colnamehead,querykey,queryvalue=None):
     if edition == '':
         col_name = col_names[-1]
     else:
-        col_name = col_names[-1]
-        # col _name = col_names[int(edition)]
+        # col_name = col_names[-1]
+        col_name = col_names[int(edition)]
 
     col = database.get_collection(col_name)
 
     print '*'*80
 
     smiles = ['PUBCHEM_OPENEYE_STANDARD_SMILES','Standard_SMILES']
+
     while True:
 
         queryvalue = str(raw_input('input %s  (q to quit) : ' %  querykey))
@@ -389,68 +393,38 @@ def multiProcess(func,args,size=16):
 
     pool.join
 
-def tsv2json(rawpath,savepath):
-    '''
-    this function is to thansform the tsv flle to a json file
-    rawpath --- the tsv file path
-    savepath --- the json file path
-    '''
-    tsvfile = open(rawpath)
+def getOpts(modelhelp,funcs,insert=True):
     
-    n = 0
+    (downloadData,extractData,standarData,insertData,updateData,selectData) = funcs
+    try:
 
-    data_list = list()
-    
-    for line in tsvfile:
-        data = line.strip().split('\t')
+        (opts,args) = getopt.getopt(sys.argv[1:],"hauq:",['--help',"all","--update",'--query='])
 
-        if n == 0:
-            keys = data
-        else:
-            data_list.append(dict(zip(keys,data)))
+        querykey,queryvalue=("","")
 
-        n += 1
+        for op,value in opts:
 
-    with open(savepath,'w') as wf:
-        
-        json.dump(data_list,wf,indent=2)
+            if op in ("-h","--help"):
 
-def tsv2muljson(rawpath,savedir):
-    '''
-    this function is to thansform the tsv flle to a json file,  apply to big file
-    rawpath --- the tsv file path
-    savepath --- the json file save dir
-    '''
-    tsvfile = open(rawpath)
+                print modelhelp
 
-    n = 0
+            elif op in ('-a','--all'):
 
-    data_list = list()
-    
-    for line in tsvfile:
+                save = downloadData(redownload=True)
+                store = extractData(save)
+                if insert:
+                    insertData(store)
 
-        data = line.strip().split('\t')
+            elif op in ('-u','--update'):
+                updateData()
 
-        if n == 0:
-            keys = data
-        else:
-            data_list.append(dict(zip(keys,data)))
+            elif op in ('-q','--query'):
+                selectData(value)
+               
+    except getopt.GetoptError:
 
-        if len(data_list) == 50 :
+        sys.exit()
 
-            with open(pjoin(savedir,'{}.json'.format(n)),'w') as wf:
-                
-                json.dump(data_list,wf,indent=2)
-
-                # clear
-                data_list = list()
-
-        n += 1
-
-    with open(pjoin(savedir,'{}.json'.format(n)),'w') as wf:
-        
-        json.dump(data_list,wf,indent=2)
-        
 def main():
 
     print neutrCharge('c1ccccc1CC([NH3+])C(=O)[O-]')

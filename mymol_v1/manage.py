@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# --coding:utf-8--
+# ---coding:utf-8---
 # date:20171115
 # author:wuling
 # emai:ling.wu@myhealthgene.com
@@ -10,14 +10,12 @@ this model is set to start a new sub-model for a database like chebi
 import sys
 sys.path.append('../..')
 sys.setdefaultencoding = ('utf-8')
-import getopt
 from share import *
 from config import *
-from template import pytemplate,helpdoc
 from chebi import chebi_v1
-from kegg import kegg_compound_v1
 from drugbank import drugbank_v1
-from pubchem import pubchem_v1
+from kegg import kegg_compound_v1
+from pubchem import pubchem_compound_v1
 
 version = '1.0'
 
@@ -33,7 +31,7 @@ def importModel(modelname,allupdate=False):
     'chebi':chebi_v1.updateData,
     'kegg':kegg_compound_v1.updateData,
     'drugbank':drugbank_v1.updateData,
-    'pubchem':pubchem_v1.updateData,
+    'pubchem':pubchem_compound_v1.updateData,
     }
 
     return updates.values() if allupdate else updates.get(modelname)
@@ -43,23 +41,40 @@ def initModel(modelname):
     this function is to init a new model with specified model name
     modelname --- the specified model's name
     '''
+    # check to see if modelname  existed
+    print '-'*50
+    models =  [name for name in listdir('./') if  not (name.endswith('.py') or name.endswith('.pyc'))]
+
+    if modelname in models:
+
+        tips = 'the model {} existed ,do  you still want to  create it ? (y/n) : '.format(modelname)
+
+        choice = raw_input(tips)
+
+        if choice == 'n':
+            return
+
     # create major dir
     createDir(pjoin('./',modelname))
 
     # create dataload,dataraw,datastore and database  
-    (_model,_raw,_store,_db) = buildSubDir(modelname)
+    (_model,_raw,_store,_db,_map) = buildSubDir(modelname)
+    createDir(pjoin(_db,'docs'))
 
     # create moldename_v1.py
     pyload = open(pjoin(_model,'{}_v1.py'.format(modelname)),'w')
-    pyload.write(pytemplate + '\n')
+    pyload.write(py_template.replace('*'*6,modelname).strip() + '\n')
     pyload.close()
 
     initload = open(pjoin(_model,'__init__.py'),'w')
     initload.close()
 
+    introload = open(pjoin(_model,'{}.readme'.format(modelname)),'w')
+    introload.write(model_intros.replace('*'*6,modelname) + '\n')
+    introload.close()
     # create docs under dataload and database
-    for _dir in [_model,_db]:
-        createDir(pjoin(_dir,'docs'))
+    # for _dir in [_model,_db]:
+    #     createDir(pjoin(_dir,'docs'))
 
     print 'model %s  created successfully !' % modelname
 
@@ -125,12 +140,12 @@ def main():
     
     try:
 
-        (opts,args) = getopt.getopt(sys.argv[1:],"hi:u:d:",['--help=',"init=","--update=",'--delete='])
+        (opts,args) = getopt.getopt(sys.argv[1:],"hi:u:d:",['--help=',"--init=","--update=",'--delete='])
 
         for op,value in opts:
 
             if op in ("-h","--help"):
-                print helpdoc
+                print manage_help
 
             elif op in ('-i','--init'):
                 initModel(value)

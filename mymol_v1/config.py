@@ -5,10 +5,13 @@
 # emai:ling.wu@myhealthgene.com
 
 #+++++++++++++++++++++++++ packages ++++++++++++++++++++++++++++++++++++++#
-import os , sys, tsv, json, time, rdkit, MySQLdb
+import os , sys, getopt, tsv, json, time, rdkit, MySQLdb
+from template import *
 from ftplib import FTP
 from rdkit import Chem
 from rdkit.Chem import AllChem
+from lxml import etree as et
+from xmltodict import parse
 from datetime import datetime
 from selenium import webdriver
 from pymongo import MongoClient
