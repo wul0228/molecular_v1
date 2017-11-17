@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# --coding:utf-8--
+# ---coding:utf-8---
 # date:20171102
 # author:wuling
 # emai:ling.wu@myhealthgene.com
@@ -16,15 +16,15 @@ import requests
 from config import *
 from share import *
 from bs4 import BeautifulSoup as bs
-from lxml import etree as et
-from xmltodict import parse
+
+__all__ = ['downloadData','extractData','standarData','insertData','updateData','selectData']
 
 version = '1.0'
 
 model_name = psplit(os.path.abspath(__file__))[1]
 
 # buid directory to store raw an extracted data
-(drugbank_model,drugbank_raw,drugbank_store,drugbank_db) = buildSubDir('drugbank')
+(drugbank_model,drugbank_raw,drugbank_store,drugbank_db,drugbank_map) = buildSubDir('drugbank')
 
 # main code
 def getWebPage():
@@ -54,7 +54,7 @@ def getWebPage():
 def downloadData(redownload=False):
     '''
     this function is to connect drugbanek web  site and log in to download zip file
-    paras:
+    args:
     redownload-- default False, check to see if exists an old edition before download
                        -- if set to true, download directly with no check
     '''
@@ -94,7 +94,11 @@ def downloadData(redownload=False):
         return  new_file_path
 
 def extractData(new_file_path):
-
+    '''
+    this function is to extract drug data from xml.zip  raw file
+    args:
+    new_file_path -- the renamed xml file absolute path 
+    '''
     filename = psplit(new_file_path)[1].strip().split('.xml.zip')[0].strip()
     # gunzip file
     # filedir = new_file_path.split('.zip')[0].strip()
@@ -143,6 +147,11 @@ def extractData(new_file_path):
     return drug_store
 
 def standarData(drug):
+    '''
+    this funcition is to standard a dict  obeject  to delet some keys that's value is none recursive
+    args:
+    drug -- a dict object from xmltodict result of drugbank.xml file
+    '''
 
     equal = False
 
@@ -163,6 +172,11 @@ def standarData(drug):
     return end
 
 def insertData(storedir):
+    '''
+    this function is to insert extracted data to mongodb database
+    args:
+    storedir ~ a json file's path dir ,stored the drugbank data
+    '''
 
     conn = MongoClient('127.0.0.1',27017)
 
@@ -186,23 +200,11 @@ def insertData(storedir):
 
     print 'insertData completed !'
 
-def selectData():
-    '''
-    this function is set to select data from mongodb
-    '''
-    conn = MongoClient('127.0.0.1',27017)
-
-    db = conn.DrugBank
-
-    colnamehead = 'drugbank'
-
-    querykey = 'name'
-
-    dataFromDB(db,colnamehead,querykey,queryvalue=None)
-    
-def updateData():
+def updateData(insert=True):
     '''
     this function is to check the edition existed and update or not
+    args:
+    insert -- default is Ture, after standar data ,insert to mongodb, if set to false, process break when standarData completed
     '''
     drugbank_log = json.load(open(pjoin(drugbank_model,'drugbank.log')))
     
@@ -212,7 +214,13 @@ def updateData():
 
     if releases != latest_edition:
 
-        choseDown(choice = 'download')
+        save = downloadData(redownload=True)
+
+        store  = extractData(save)
+
+        if insert:
+        
+            insertData(store)
 
         drugbank_log .append((releases,today,os.path.abspath(__file__)))
 
@@ -226,42 +234,29 @@ def updateData():
         print 'remote latest edition is %s ' % latest_edition 
 
         print 'local is the latest edition!'
-
-
-def choseDown(choice = 'update',insert=True):
-    
-    if choice == 'update':
-
-        updateData()
-
-    elif choice == 'download':
-
-        save = downloadData(redownload=True)
-
-        store  = extractData(save)
-
-        if insert:
         
-            insertData(store)
+def selectData(querykey = 'name',queryvalue='Lepirudin'):
+    '''
+    this function is set to select data from mongodb
+    args:
+    querykey --  the filed name 
+    queryvalue -- the field value
+    '''
+    conn = MongoClient('127.0.0.1',27017)
 
-    elif choice == 'select':
+    db = conn.DrugBank
 
-        selectData()
-    else:
-        pass
+    colnamehead = 'drugbank'
+
+    dataFromDB(db,colnamehead,querykey,queryvalue=None)
 
 def main():
 
-    tips = '''
-    Download : 1
-    Update : 2
-    Select : 3
-    '''
-    index = str(raw_input(tips))
+    modelhelp = model_help.replace('*'*6,sys.argv[0]).replace('&'*6,'DrugBank').replace('#'*6,'drugbank')
 
-    chose = {'1':'download','2':'update','3':'select'}
+    funcs = (downloadData,extractData,standarData,insertData,updateData,selectData)
 
-    choseDown(choice =chose[index])
+    getOpts(modelhelp,funcs=funcs)
 
 if __name__ == '__main__':
     main()

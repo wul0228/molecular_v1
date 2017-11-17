@@ -1,0 +1,93 @@
+++++++ drugbank Documentation ++++++
+
+edited@2017/11/16
+
+please direct all questions to ling.wu@myhealthgene.com
+
+1. brief introduction of sub-files
+.
+├── drugbank.log          --- contains the database version,update date,model version
+├── drugbank.readme --- drugbank data directory and the parser introduction
+├── drugbank_v1.py    --- contains the main code of drugbank-parser
+├── drugbank_v1.pyc  --- the compiled file of drugbank_v1.py 
+├── database               --- contains the all version of database in mongodb and related introduction
+├── dataraw                 --- contains the raw data from drugbank ftp site
+├── datastore               --- contains the standard data convert from to  dataraw 
+├── __init__.py              --- the inited  file of package
+└── __init__.pyc            --- the compiled file of  __init__.py
+	
+2. description about drugbank-parser
+
+the main job of drugbank-parser is to download,convert,store and update data and insert data to mongodb automatically.
+
+Functions
+
+(1) getWebPage( )
+    ===function : get the download web page of drugbank by python crawler,return a download_url and latest releases
+    
+(2) downloadData( redownload = False )
+    ===function : download the raw data from drugbank FTP WebSite
+    ===parameter:
+         redownload ~ default False, check to see if exists an old edition before download
+                    ~ if set to true, download directly with no check
+
+(3) extractData( new_file_path )
+    ===function : extract the infos in drugbank download file  and save as a json file
+    ===parameter:
+         new_file_path ~ the renamed xml file absolute path 
+
+(4) standarData(drug)
+    ===function : standard a dict  obeject  to delet some keys that's value is none recursive
+    ===parameter:
+	 drug ~ a dict object from xmltodict result of drugbank.xml file
+
+(5) insertData(storedir)
+    ===function :  insert extracted data to mongodb database
+    ===parameter:
+	 storedir ~ a json file's path dir ,stored the drugbank data
+
+(6) updateData(insert=True)
+    ===function : update drugbank data automatically
+    ===parameter:
+         insert ~ default is Ture, after standar data ,insert to mongodb
+                   ~ if set to false, process break when standarData completed
+
+(7) selectDate(querykey,queryvalue):
+    ===function : supply a interface to select data from database
+    ===parameter:
+        querykey ~ the filed name 
+        queryvalue ~ the field value
+
+Design
+
+a. download from web site by wget and store raw data into /dataraw/drugbank/drugbank_version_nowtime.xml.zip
+b. check to see if there existed an editon
+c. file handling at once
+
+(1) downloadData
+
+    redownload = True  → a
+    redownload = False →b ,=N → a
+			                       b, =y →   list editions ,still redownload = Y → a
+				                                list editions ,still redownload = N → End
+(2) extractData
+
+    new_file_path → xmltodict(newfilepath) → from output drugbank dict get drugs list → circulate all drugs to standar →output drug json file one by one
+
+      	      
+(3) updateData
+    
+    get the latest updated version from remote site → compare with current local version,remote updated = Y → a → c → mark in log
+ 												                                                                                       updated = N → End
+
+
+Usage: python drugbank_v1.py  [OPTION]...[NAME]...
+
+Download,extract,standar,insert and update drugbank automatically
+
+-h, --help                         :give this help
+-a, --all                             :excute download,extract,standar and insert
+-u, --update                     :update drugbank database
+-q, --query  [filedname]  :select data from mongodb
+
+++++++ drugbank  Documentation ++++++
