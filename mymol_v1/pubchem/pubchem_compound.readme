@@ -1,0 +1,122 @@
+++++++ pubchem Documentation ++++++
+
+edited@2017/10/25
+
+please direct all questions to ling.wu@myhealthgene.com
+
+1. brief introduction of sub-files
+.
+├── database                                      --- contains the all version of database in mongodb and related introduction
+├── dataraw                                        --- contains the raw data of compound from pubchem ftp site
+├── datastore                                     --- contains the standard data convert from to  dataraw 
+├── __init__.py                                     --- the inited  file of package
+├── __init__.pyc                                   --- the compiled file of  __init__.py
+├── pubchem.log                                --- contains the database version,update date,model version
+├── pubchem.readme                       --- pubchem data directory and the parser introduction
+├── pubchem_compound_v1.py      --- contains the main code of pubchem-parser
+└── pubchem_compound_v1.pyc    --- the compiled file of  pubchem_compound_v1.py 
+
+2. description about pubchem-parser
+
+the main job of pubchem-parser is to download,convert,store and update data and insert data to mongodb automatically.
+
+Functions
+
+(1) downloadOne(ftp,filename,rawdir):
+    ===function :  download  pne one under  a given remote dir 
+    ===parameter:
+        ftp ~ a ftp cursor for a specified
+        filename ~  the name of file need download
+        rawdir ~ the directory to save download file
+
+(2) downloadData( redownload = False ,rawdir = None)
+    ===function : download the raw data from PubChem FTP WebSite
+    ===parameter:
+         redownload ~ default False, check to see if exists an old edition before download
+                               ~ if set to true, download directly with no check
+         rawdir ~ the specified directory to save download file
+
+(3) extractData(rawdir = None, latest = False)
+    ===function : extract the infos in pubchem download file  and save as a json file
+    ===parameter:
+         rawdir ~ if rawdir afforded, file handling at once
+         latest   ~ if no rawdir , default False ,extract data directely from latest version in /pubchem/dataraw/
+                      ~ if set to True, download data in real-time before extract
+
+(4) extractPartData(rawdir,storedir):
+    ===function : extract data in rawdir but not in storedir
+        rawdir ~ the  directory to store raw file
+        storedir ~ the directory to store standard data
+    
+(5) standarData(filepath,storedir)
+    ===function : transfer sdf file to json and add a field PUBCHEM_OPENEYE_CAN_SMILES
+    ===parameter:
+        filepath ~ the data file 's absolute path 
+        storedir ~ the directory to store standard data
+
+(6) insertData(storedir)
+    ===function : insert extracted data to mongdb database ,if data insert failed ,log to errorInsert.json in pubchem_model
+    ===parameter:
+        storedir ~  json file's dir path,stored the pubchem data
+
+(7) updateData(insert=False)
+    ===function : update pubchem data automatically
+    ===parameter:
+        insert ~ default is False, process break after standard data when update
+
+(8) createNewVersion(updated_storedir):
+    ===function : create a new .files in pubchem/database/ to record the newest  version
+    ===parameter:
+        updated_storedir ~ the directory  store  updated data
+
+(9) insertUpdatedData(latest_file): 
+    ===function :generate a  new collection record in mongodb PubChem  with updated date and the old
+    ===parameter:
+        latest_file ~ the json file record the latest file names in newest version
+
+(10) selectDate():
+    ===function : supply a interface to select data from database
+    ===parameter:
+        querykey ~ the filed name 
+        queryvalue ~  the field value
+
+
+Design
+
+a. download from ftp site and store raw data into pubchem /dataraw/compound_nowtime/Compound_version_nowtime.sdf.gz
+b. check to see if there existed an editon
+c. file handling at once
+
+(1) downloadData
+
+    redownload = True  → a
+    redownload = False →b ,=N → a
+                                            b, =y →   list editions ,still redownload = Y → a
+                                                            list editions ,still redownload = N → End
+(2) extractData
+
+    rawdir = True → c
+                = False,latest = True → a → rawdir = True → c
+                                        = False → b,=N → a
+                                                              =y → list editions,index = Y → rawdir = True → c
+                                                                                             index = N → End
+(3) extractPartData
+        
+        check existed raw file → check existed store file→get  needextract    →  extractData(needextract ) 
+                           |                                  
+
+(3) updateData
+    
+    get the latest updated version from remote site → compare with current local version,remote updated = Y → a → c → mark in log
+                                                                                                                                                                          updated = N → End
+
+Usage: python pubchem_compound_v1.py  [OPTION]...[NAME]...
+
+Download,extract,standar,insert and update ChEBI automatically
+
+-h, --help                         :give this help
+-a, --all                             :excute download,extract,standar and insert
+-u, --update                     :update chebi database
+-q, --query  [filedname]  :select data from mongodb
+
+++++++ pubchem  Documentation ++++++
