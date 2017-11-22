@@ -557,11 +557,11 @@ def insertUpdatedData(latest_file):
     # connect to db to insert
     conn = MongoClient('127.0.0.1', 27017 )
 
-    db = conn.PubChem
+    db = conn.mymol
 
     collection = db.Compound
 
-    collection_name  ='Compound_' + now 
+    collection_name  ='pubchem_compound_' + now 
 
         # all file name in new vrsion
     insertFiles = latest_file.values()
@@ -608,21 +608,155 @@ def selectData(querykey = 'PUBCHEM_OPENEYE_STANDARD_SMILES',queryvalue='O'):
     '''
     conn = MongoClient('127.0.0.1', 27017 )
 
-    db = conn.PubChem
+    db = conn.mymol
 
-    colnamehead = 'Compound_'
+    colnamehead = 'pubchem_compound_'
 
     dataFromDB(db,colnamehead,querykey,queryvalue=None)
+
+class dbMap(object):
+    '''
+    this class is to build a mapping relation between key field in database
+    '''
+    def __init__(self,latestfilepath):
+
+        latest_file = json.load(open(latestfilepath))
+
+        insertFiles = latest_file.values()
+
+        compound_storedirs =[dir_name for dir_name in listdir(pubchem_store) if dir_name.startswith('compound')]
+
+        filepaths  =   list()
+
+        for _dir  in compound_storedirs:
+
+            dir_path = pjoin(pubchem_store,_dir)
+
+            for filename in listdir(dir_path):
+
+                if filename in insertFiles:
+
+                    filepath = pjoin(dir_path,filename)
+
+                    filepaths.append(filepath)
+
+        self.filepaths = filepaths
+
+        self.mapdir = pjoin(pubchem_map,psplit(latestfilepath)[1].strip().split('.files')[0].strip())
+
+        createDir(self.mapdir)
+
+    def mapName2ID(self):
+
+        name_id = dict()
+
+        for index,filepath in enumerate(self.filepaths):
+
+            print index,psplit(filepath)[1].strip()
+
+            blocks = json.load(open(filepath))
+
+            for block in blocks:
+
+                compound_id = block.get("PUBCHEM_COMPOUND_CID")
+                
+                iupac = block.get("PUBCHEM_IUPAC_NAME")
+
+                iupac_open = block.get("PUBCHEM_IUPAC_OPENEYE_NAME")
+
+                iupac_trad = block.get("PUBCHEM_IUPAC_TRADITIONAL_NAME")
+
+                iupac_cas = block.get("PUBCHEM_IUPAC_CAS_NAME")
+
+                iupac_sys = block.get("PUBCHEM_IUPAC_SYSTEMATIC_NAME")
+
+                names = [iupac,iupac_open,iupac_trad,iupac_cas,iupac_sys]
+
+                for name in names:
+
+                    if name not in name_id:
+
+                        name_id[name] = list()
+
+                    name_id[name].append(compound_id)
+
+        with open(pjoin(self.mapdir,'name2id.json'),'w') as wf:
+
+            json.dump(name_id,wf,indent=2)
+
+        print 'name have id :', len(name_id)
+
+        print 'mapName2ID completed ! '
+
+        return name_id
+
+    def mapID2Name(self,name_id):
+
+        id_name = value2key(name_id)
+
+        with open(pjoin(self.mapdir,'id2name.json'),'w') as wf:
+
+            json.dump(id_name,wf,indent=2)
+
+        print 'id have name', len(id_name)
+
+        print 'mapID2Names completed ! '
+
+        return id_name
+
+    def mapStandSmi2ID(self):
+
+        standSmi_id = dict()
+
+        for filepath in self.filepaths:
+
+            blocks = json.load(open(filepath))
+
+            for block in blocks:
+
+                compound_id = block.get("PUBCHEM_COMPOUND_CID")
+                
+                standSmi = block.get("PUBCHEM_OPENEYE_STANDARD_SMILES")
+
+                if standSmi:
+
+                    if standSmi not in standSmi_id:
+
+                        standSmi_id[standSmi] = list()
+
+                    standSmi_id[standSmi].append(compound_id)
+
+        with open(pjoin(self.mapdir,'standsmi2ids.json'),'w') as wf:
+
+            json.dump(standSmi_id,wf,indent=2)
+
+        print 'standSmi:', len(standSmi_id)
+
+        print 'mapStandSmi2ID completed ! '
+
+        return standSmi_id
+
+    def mapping(self):
+
+         name_id = self.mapName2ID()
+
+         id_name= self.mapID2Name(name_id)
+
+         self.mapStandSmi2ID()
 
 def main():
 
     modelhelp = model_help.replace('*'*6,sys.argv[0]).replace('&'*6,'PubChem compound').replace('#'*6,'pubchem compound')
    
-    funcs = (downloadData,extractData,standarData,insertData,updateData,selectData)
+    funcs = (downloadData,extractData,standarData,insertData,updateData,selectData,dbMap,pubchem_store)
 
     getOpts(modelhelp,funcs=funcs)
     
 if __name__ == '__main__':
 
     main()
-   
+    # latestfilepath = '/home/user/project/molecular_v1/mymol_v1/pubchem/database/Compound_171117.files'
+    # pubchemmap = dbMap(latestfilepath)
+    # pubchemmap.mapping()
+
+
