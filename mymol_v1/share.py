@@ -323,6 +323,31 @@ def dataFromDB(database,colnamehead,querykey,queryvalue=None):
 
         print '-'*80
 
+def value2key(dic):
+    '''
+    this function is to overture a value as the key and the key as vaule, just like {a:[1,2],b:[3,2]} return {1:a,2:[a,b],3:b}
+    note that the value of key must be list and the element of list must be hashable
+    '''
+    value_key = dict()
+
+    for key,val in dic.items():
+
+        if isinstance(val,unicode):
+
+            if val not in value_key:
+                value_key[val] = list()
+            value_key[val].append(key)
+
+        elif isinstance(val,list):
+
+            for v in val :
+                if v not in value_key:
+                    value_key[v] = list()
+            value_key[v].append(key)
+
+
+    return value_key
+
 def deBlankDict(dic):
     '''
     this function is to 
@@ -377,6 +402,52 @@ def deBlankDict(dic):
 
     return dic
 
+
+def strAndList(content):
+    '''
+    this function is to combine the unicode and list containing multi unicode like ['a',['b','c']] ,return a ['a','b','c']
+    '''
+    all_unicode = list()
+    
+    for i in content:
+
+        if isinstance(i,unicode):
+
+            all_unicode.append(i)
+
+        elif isinstance(i,list):
+
+            all_unicode += i
+
+    return list(set(all_unicode))
+
+def strAndDict(content,key):
+    '''
+    this function is to combine the unicode and dict value containing multi unicode like ['a',{'b':'c'}] ,return a and the valule of specified key like 'b', ['a','c']
+    '''
+
+    if isinstance(content,dict):
+
+        return [content[key],]
+
+    elif isinstance(content,list):
+
+        tmpfunc = lambda x:x[key] if isinstance(x,dict) else x
+
+        return [tmpfunc(i) for i in content]
+
+def retuOneDictValue(content,key):
+
+    if isinstance(content,dict):
+
+        return content.get(key)
+
+    elif isinstance(content,list):
+
+       for i in content:
+            if isinstance(i,dict):
+                 return i.get(key)
+
 def multiProcess(func,args,size=16):
     '''
     this function is to concurrent processing
@@ -395,10 +466,10 @@ def multiProcess(func,args,size=16):
 
 def getOpts(modelhelp,funcs,insert=True):
     
-    (downloadData,extractData,standarData,insertData,updateData,selectData) = funcs
+    (downloadData,extractData,standarData,insertData,updateData,selectData,dbMap,model_store) = funcs
     try:
 
-        (opts,args) = getopt.getopt(sys.argv[1:],"hauq:",['--help',"all","--update",'--query='])
+        (opts,args) = getopt.getopt(sys.argv[1:],"haumf:",['--help',"--all","--update","--map","--field="])
 
         querykey,queryvalue=("","")
 
@@ -415,15 +486,45 @@ def getOpts(modelhelp,funcs,insert=True):
                 if insert:
                     insertData(store)
 
+                _map = dbMap(store)
+                _map.mapping()
+
             elif op in ('-u','--update'):
                 updateData()
 
-            elif op in ('-q','--query'):
+            elif op in ('-m','--map'):
+
+                latest_store =  sorted([path for path in listdir(model_store)],key=lambda x: x.rsplit('_',1)[1].strip())[-1]
+
+                latest_store_dir = pjoin(model_store,latest_store)
+
+                _map = dbMap(latest_store_dir)
+                
+                _map.mapping()
+
+            elif op in ('-f','--field'):
                 selectData(value)
                
     except getopt.GetoptError:
 
         sys.exit()
+
+      
+class DateEncoder(json.JSONEncoder):  
+
+    def default(self, obj):  
+
+        if isinstance(obj, datetime):  
+
+            return obj.strftime('%Y-%m-%d %H:%M:%S')  
+
+        # elif isinstance(obj, date):  
+
+        #     return obj.strftime("%Y-%m-%d")  
+
+        else:  
+
+            return json.JSONEncoder.default(self, obj) 
 
 def main():
 

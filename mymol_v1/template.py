@@ -15,10 +15,31 @@ Usage: python manage.py  [OPTION]...[MODELNAME]...
 Manage model and sub-model 
 
 options:
+
 -h, --help                :give this help
+
+-m,--map                  :create the all map relations with latest store file
+
 -i, --init    [modelname] :init a new model and create sub-model
+    eg:
+        python manage.py -i  chebi 
+
 -u, --update  [modelname] :update a model in current directory,if modelname=all,update all
+    eg:
+        python manage.py -u chebi
+
 -d, --delete  [modelname] :delete the specified model
+    eg:
+        python manage. py -d chebi
+
+-f, --field               : look for all database with this field
+     =name
+     =cas
+-v, --value               : look for all database with filed = value
+-o,-- output              : the file path to store query result 
+    eg:
+        python manage.py  -f name -v Water -o ./water.json
+
 '''
 common_help = '''
 Usage: python common.py  [OPTION]...
@@ -44,7 +65,8 @@ Download,extract,standar,insert and update &&&&&& automatically
 -h, --help               :give this help
 -a, --all                :excute download,extract,standar and insert
 -u, --update             :update ###### database
--q, --query  [filedname] :select data from mongodb
+-m, --map                :create map relations with latest store file
+-f, --field              :look for database with this field
 '''
 
 py_template = '''
