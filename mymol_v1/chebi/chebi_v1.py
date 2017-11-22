@@ -22,6 +22,7 @@ model_name = psplit(os.path.abspath(__file__))[1]
 
 (chebi_model,chebi_raw,chebi_store,chebi_db,chebi_map) = buildSubDir('chebi')
 
+
 def downloadData( redownload = False ):
     '''
     this function is to download the raw data from ChEBI FTP WebSite
@@ -201,7 +202,7 @@ def insertData(store_file_path):
 
         conn = MongoClient('127.0.0.1',27017)
 
-        db = conn.ChEBI
+        db = conn.mymol
        
         collection = db.collection_name
         
@@ -273,140 +274,262 @@ def selectData(querykey = 'Standard_SMILES',queryvalue=''):
     '''
     conn = MongoClient('127.0.0.1',27017)
 
-    db = conn.ChEBI
+    db = conn.mymol
 
     colnamehead = 'ChEBI'
 
     dataFromDB(db,colnamehead,querykey,queryvalue=None)
 
-def mapName2ID(store_file_path):
+class dbMap(object):
+    '''
+    this class is to build a mapping relation between key field in database
+    '''
+    def __init__(self,store_file_path):
 
-    datamap  = pjoin(chebi_model,'datamap')
+        self.filepath = store_file_path
 
-    file = json.load(open(store_file_path))
+        self.jsonfile = json.load(open(self.filepath))
 
-    name_ids = dict()
+        self.mapdir = pjoin(chebi_map,psplit(store_file_path)[1].strip().split('.json')[0].strip())
 
-    for block in file:
+        createDir(self.mapdir)
 
-        chebi_id = block.get("ChEBI&ID")
+    def mapInit2SecondID(self):
+
+        init_id = dict()
+
+        for block in self.jsonfile:
+
+            chebi_id = block.get("ChEBI&ID")
+            
+            chebi_second_id =block.get("Secondary&ChEBI&ID")
+
+            if not chebi_second_id:
+
+                continue
+
+            chebi_second_id = strAndList([chebi_second_id])
+
+            if chebi_id not in init_id:
+
+                init_id[chebi_id] = list()
+
+            init_id[chebi_id] += chebi_second_id
+
+        with open(pjoin(self.mapdir,'init2secondid.json'),'w') as wf:
+
+            json.dump(init_id,wf,indent=2)
+
+        print 'init have 2 or more second id :', len(init_id)
+
+        print 'mapInit2SecondID  completed ! '
+
+        return init_id
+
+    def mapName2ID(self):
+
+        name_id = dict()
+
+        id_name = dict()
+
+        for block in self.jsonfile:
+
+            chebi_id = block.get("ChEBI&ID")
+            
+            chebi_name = block.get("ChEBI&Name")
+
+            iupac_name = block.get('IUPAC&Names')
+
+            brand_name = block.get('BRAND&Names')
+
+            synonyms = block.get('Synonyms')
+
+            names = strAndList([chebi_name,iupac_name,brand_name,synonyms])
+
+            for name in names:
+                if name not in name_id:
+                    name_id[name] = list()
+                name_id[name].append(chebi_id)
         
-        chebi_second_id =block.get("Secondary&ChEBI&ID")
+        with open(pjoin(self.mapdir,'name2id.json'),'w') as wf:
+            json.dump(name_id,wf,indent=2)
 
-        chebi_name = block.get("ChEBI&Name")
+        print 'name have ids:', len(name_id)
 
-        iupac_name = block.get('IUPAC&Names')
+        print 'mapName2ID completed ! '
 
-        brand_name = block.get('BRAND&Names')
+        return name_id
 
-        synonyms = block.get('Synonyms')
+    def mapID2Name(self,name_id):
 
-        names = [name for name in [chebi_name,iupac_name,brand_name,synonyms] if name]
+        id_name = value2key(name_id)
 
-        for name in names:
-            if isinstance(name,unicode):
-                if name not in name_ids:
-                    name_ids[name] = list()
-                name_ids[name].append(chebi_id)
-                name_ids[name].append(chebi_second_id)
+        with open(pjoin(self.mapdir,'id2name.json'),'w') as wf:
 
-            elif isinstance(name,list):
-                for n in name:
-                    if n not in name_ids:
-                        name_ids[n] = list()
+            json.dump(id_name,wf,indent=2)
 
-                    if  isinstance(chebi_id,unicode):
-                        name_ids[n].append(chebi_id)  
-                    elif   isinstance(chebi_id,list):
-                        name_ids[n] += chebi_id
-                    else:
-                        if chebi_id:
-                            print 'chebi_id',chebi_id
+        print 'id have name', len(id_name)
 
-                    if   isinstance(chebi_second_id,unicode):
-                        name_ids[n].append(chebi_second_id)  
-                    elif  isinstance(chebi_second_id,list):
-                        name_ids[n] += chebi_second_id
-                    else:
-                        pass
-                    
-            else:
-                pass
-    
-    for name,ids in name_ids.items():
-        newids = [_id for _id in ids if _id]
-        name_ids[name] = newids
+        print 'mapID2Name completed ! '
 
-    savefilename = 'name2ids_{}.json'.format(store_file_path.rsplit('ChEBI_complete_')[1].split('.json')[0].strip())
-    
-    with open(pjoin(chebi_map,savefilename),'w') as wf:
-        json.dump(name_ids,wf,indent=2)
+        return id_name
 
-    print len(name_ids)
+    def mapCas2ID(self):
 
-    # keys = reduce(lambda x,y: set(x) |set(y) , [c.keys() for c in file])
+        # a chebi id  coresponding to multi cas
+        cas_id = dict()
 
-    # nolink = [i for i in keys if not i.endswith('&Links')]
+        for block in self.jsonfile:
 
-    # print keys
-    # print '-'*50
-    # print len(keys)
+            chebi_id = block.get("ChEBI&ID")
+            
+            cas = block.get("CAS&Registry&Numbers")
 
-    # print nolink #BRAND_Names ChEBI_Name Synonyms IUPAC_Names
-    # print '~'*50
-    # print len(nolink)
+            if not cas:
 
-def mapCas2ID(store_file_path):
+                continue
 
-    # a chebi id  coresponding to multi cas
-    file = json.load(open(store_file_path))
+            cass = strAndList([cas])
 
-    cas_ids = dict()
+            for cas in cass:
 
-    for block in file:
+                if cas not in cas_id:
 
-        chebi_id = block.get("ChEBI&ID")
+                    cas_id[cas] = list()
+
+                cas_id[cas].append(chebi_id)
+
+        with open(pjoin(self.mapdir,'cas2id.json'),'w') as wf:
+
+            json.dump(cas_id,wf,indent=2)
+
+        print 'cas have id:', len(cas_id)
+
+        print 'mapCas2ID  completed ! '
+
+        return cas_id
+
+    def mapID2Cas(self,cas_id):
+
+        id_cas = value2key(cas_id)
+
+        with open(pjoin(self.mapdir, 'id2cas.json'),'w') as wf:
+
+            json.dump(id_cas,wf,indent=2)
+
+        print 'id have cas :', len(id_cas)
+
+        print 'mapID2cases completed ! '
+
+        return id_cas
+
+
+    def mapName2Cas(self,name_id,id_cas):
         
-        chebi_second_id =block.get("Secondary&ChEBI&ID")
+        name_cas = dict()
 
-        cas = block.get("CAS&Registry&Numbers")
+        for name,ids in name_id.items():
 
-        if isinstance(cas,unicode):
-            if  cas not in cas_ids:
-                cas_ids[cas] = list()
-            cas_ids[cas].append(chebi_id)
-            cas_ids[cas].append(chebi_second_id)    
+            for _id in ids:
 
-        elif isinstance(cas,list):
-            for c in cas:
-                if  c not in cas_ids:
-                    cas_ids[c] = list()
-                cas_ids[c].append(chebi_id)
-                cas_ids[c].append(chebi_second_id)    
+                cases = id_cas.get(_id)
 
-    for cas,ids in cas_ids.items():
-        newids = [_id for _id in ids if _id]
-        cas_ids[cas] = newids
+                if not cases:
 
-    savefilename = 'cas2ids_{}.json'.format(store_file_path.rsplit('ChEBI_complete_')[1].split('.json')[0].strip())
-    
-    with open(pjoin(chebi_map,savefilename),'w') as wf:
-        json.dump(cas_ids,wf,indent=2)
+                    continue
 
-    print len(cas_ids)
+                if name not in name_cas:
+
+                    name_cas[name] = list()
+
+                name_cas[name] += cases
+
+            if name_cas.get(name):
+
+                name_cas[name] = list(set(name_cas[name]))
+        
+        with open(pjoin(self.mapdir,'name2cas.json'),'w') as wf:
+
+            json.dump(name_cas,wf,indent=2)
+
+        print 'name have cas :', len(name_cas)
+
+        print 'mapName2Cas completed ! '
+
+        return name_cas
+
+    def mapCas2Name(self,name_cas):
+
+        cas_name = value2key(name_cas)
+
+        with open(pjoin(self.mapdir,'cas2name.json'),'w') as wf:
+
+            json.dump(cas_name,wf,indent=2)
+
+        print 'cas have name: ', len(cas_name)
+
+        print 'mapCas2Names completed ! '
+
+        return cas_name
+
+    def mapStandSmi2ID(self):
+
+        # a chebi id  coresponding to multi cas
+
+        standSmi_id = dict()
+
+        for block in self.jsonfile:
+
+            chebi_id = block.get("ChEBI&ID")
+            
+            standSmi = block.get("Standard_SMILES")
+
+            if not standSmi:
+
+                continue
+
+            standSmis = strAndList([standSmi])
+
+            for standSmi in standSmis:
+                if standSmi not in standSmi_id:
+                    standSmi_id[standSmi] = list()
+                standSmi_id[standSmi].append(chebi_id)
+
+        with open(pjoin(self.mapdir,'standsmi2id.json'),'w') as wf:
+            json.dump(standSmi_id,wf,indent=2)
+
+        print 'standsmi have id :', len(standSmi_id)
+
+        print 'mapStandSmi2ID  completed ! '
+
+        return standSmi_id
+
+    def mapping(self):
+        
+         self.mapInit2SecondID()
+
+         name_id = self.mapName2ID()
+
+         id_name = self.mapID2Name(name_id)
+
+         cas_id = self.mapCas2ID()
+
+         id_cas = self.mapID2Cas(cas_id)
+
+         name_cas = self.mapName2Cas(name_id,id_cas)
+
+         cas_name= self.mapCas2Name(name_cas)
+
+         self.mapStandSmi2ID()
 
 def main():
 
     modelhelp = model_help.replace('*'*6,sys.argv[0]).replace('&'*6,'ChEBI').replace('#'*6,'chebi')
 
-    funcs = (downloadData,extractData,standarData,insertData,updateData,selectData)
+    funcs = (downloadData,extractData,standarData,insertData,updateData,selectData,dbMap,chebi_store)
 
     getOpts(modelhelp,funcs=funcs)
         
 if __name__ == '__main__':
     
     main()
-    # store_file_path = '/home/user/project/molecular_v1/mymol_v1/chebi/datastore/ChEBI_complete_21320171001032328_171031161434.json'
-    # mapName2ID(store_file_path)
-    # mapCas2ID(store_file_path)
-    
