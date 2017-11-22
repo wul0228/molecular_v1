@@ -169,6 +169,35 @@ def standarData(drug):
         else:
             start = b
 
+    # standar the drugbank_id  with primary id ,other id save as second_id
+
+    drugbank_id = end["drugbank-id"]
+
+    if isinstance(drugbank_id,dict):
+
+        end['drugbank-id'] = drugbank_id.get('#text')
+
+    elif isinstance(drugbank_id,list):
+
+        second_id = list()
+
+        for i in drugbank_id:
+            if isinstance(i,dict):
+                end['drugbank-id'] = i.get('#text')
+            else:
+                second_id.append(i)
+
+            end['second-id'] = second_id
+    else:
+        pass
+        
+    # standar the "synonym"
+    synonym = end.get("synonym")
+
+    if synonym :
+
+        end["synonym"] = strAndDict(synonym,'#text')
+
     return end
 
 def insertData(storedir):
@@ -180,7 +209,7 @@ def insertData(storedir):
 
     conn = MongoClient('127.0.0.1',27017)
 
-    db = conn.DrugBank
+    db = conn.mymol
 
     collection_name = psplit(storedir)[1].strip().replace('-','')
 
@@ -244,19 +273,213 @@ def selectData(querykey = 'name',queryvalue='Lepirudin'):
     '''
     conn = MongoClient('127.0.0.1',27017)
 
-    db = conn.DrugBank
+    db = conn.mymol
 
     colnamehead = 'drugbank'
 
     dataFromDB(db,colnamehead,querykey,queryvalue=None)
 
+class dbMap(object):
+    '''
+    this class is to build a mapping relation between key field in database
+    '''
+    def __init__(self,storedir):
+
+        self.storedir = storedir
+
+        self.filepaths = [pjoin(self.storedir,filename) for filename in listdir( self.storedir)]
+
+        self.mapdir = pjoin(drugbank_map,psplit(storedir)[1])
+
+        createDir(self.mapdir)
+
+    def mapInit2SecondID(self):
+
+        init_id = dict()
+
+        for filepath in self.filepaths:
+
+            block = json.load(open(filepath))
+
+            drugbank_id = block.get("drugbank-id")
+
+            second_id = block.get("second-id")
+
+            if second_id:
+
+                init_id[drugbank_id] = second_id
+
+        with open(pjoin(self.mapdir,'init2secondid.json'),'w') as wf:
+
+            json.dump(init_id,wf,indent=2)
+
+        print 'init:', len(init_id)
+
+        print 'mapInit2SecondID  completed ! '
+
+        return init_id
+
+    def mapName2ID(self):
+
+        name_id = dict()
+
+        for filepath in self.filepaths:
+
+            block = json.load(open(filepath))
+
+            drugbank_id = block.get("drugbank-id")
+
+            drugbank_name = block.get("name")
+
+            drugbank_synonym = block.get("synonym")
+
+            names = strAndList([drugbank_name,drugbank_synonym])
+
+            for name in names:
+
+                if name not in name_id:
+
+                    name_id[name] = list()
+
+                name_id[name].append(drugbank_id)
+        
+        with open(pjoin(self.mapdir,'name2id.json'),'w') as wf:
+
+            json.dump(name_id,wf,indent=2)
+
+        print 'names:', len(name_id)
+
+        print 'mapName2ID completed ! '
+
+        return name_id
+
+    def mapID2Name(self,name_id):
+
+        id_name = value2key(name_id)
+
+        with open(pjoin(self.mapdir,'id2name.json'),'w') as wf:
+
+            json.dump(id_name,wf,indent=2)
+
+        print 'id have name', len(id_name)
+
+        print 'mapID2Names completed ! '
+
+        return id_name
+
+    def mapCas2ID(self):
+
+        cas_id = dict()
+
+        for filepath in self.filepaths:
+
+            block = json.load(open(filepath))
+
+            drugbank_id = block.get("drugbank-id")
+            
+            drugbank_cas  = block.get("cas-number")
+
+            cass = strAndList([drugbank_cas])
+
+            for cas in cass:
+                if cas not in cas_id:
+                    cas_id[cas] = list()
+                cas_id[cas].append(drugbank_id)
+
+        with open(pjoin(self.mapdir,'cas2id.json'),'w') as wf:
+            json.dump(cas_id,wf,indent=2)
+
+        print 'cas jhave id :', len(cas_id)
+
+        print 'mapCas2ID completed ! '
+
+        return cas_id
+
+    def mapID2Cas(self,cas_id):
+
+            id_cas = value2key(cas_id)
+
+            with open(pjoin(self.mapdir, 'id2cas.json'),'w') as wf:
+
+                json.dump(id_cas,wf,indent=2)
+
+            print 'id have cas :', len(id_cas)
+
+            print 'mapID2Cas completed ! '
+
+            return id_cas
+
+    def mapName2Cas(self,name_id,id_cas):
+        
+        name_cas= dict()
+
+        for name,ids in name_id.items():
+
+            for _id in ids:
+
+                cases = id_cas.get(_id)
+
+                if not cases:
+
+                    continue
+
+                if name not in name_cas:
+
+                    name_cas[name] = list()
+
+                name_cas[name] += cases
+
+            if name_cas.get(name):
+                
+                name_cas[name] = list(set(name_cas[name]))
+        
+        with open(pjoin(self.mapdir,'name2cas.json'),'w') as wf:
+
+            json.dump(name_cas,wf,indent=2)
+
+        print 'name have cas :', len(name_cas)
+
+        print 'mapName2Cas completed ! '
+
+        return name_cas
+
+    def mapCas2Name(self,name_cas):
+
+        cas_name= value2key(name_cas)
+
+        with open(pjoin(self.mapdir,'cas2name.json'),'w') as wf:
+
+            json.dump(cas_name,wf,indent=2)
+
+        print 'cas have name: ', len(cas_name)
+
+        print 'mapCas2Name completed ! '
+
+        return cas_name
+
+    def mapping(self):
+
+         name_id = self.mapName2ID()
+
+         id_name= self.mapID2Name(name_id)
+
+         cas_id = self.mapCas2ID()
+
+         id_cas= self.mapID2Cas(cas_id)
+
+         name_cas = self.mapName2Cas(name_id,id_cas)
+
+         cas_name = self.mapCas2Name(name_cas)
+
+
 def main():
 
     modelhelp = model_help.replace('*'*6,sys.argv[0]).replace('&'*6,'DrugBank').replace('#'*6,'drugbank')
 
-    funcs = (downloadData,extractData,standarData,insertData,updateData,selectData)
+    funcs = (downloadData,extractData,standarData,insertData,updateData,selectData,dbMap,drugbank_store)
 
     getOpts(modelhelp,funcs=funcs)
 
 if __name__ == '__main__':
     main()
+
